@@ -1,0 +1,4 @@
+﻿  TestApp.cpp
+c:\users\vmohamme\source\repos\flashfilesystem\flashfilesystem\testapp.cpp(26): warning C4302: 'type cast': truncation from 'uint16_t *' to 'uint16_t'
+c:\users\vmohamme\source\repos\flashfilesystem\flashfilesystem\testapp.cpp(31): warning C4267: 'argument': conversion from 'size_t' to 'uint16_t', possible loss of data
+  FlashFileSystem.vcxproj -> C:\Users\vmohamme\source\repos\FlashFileSystem\Debug\FlashFileSystem.exe
