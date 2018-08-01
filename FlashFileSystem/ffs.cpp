@@ -94,6 +94,19 @@ uint8_t FFS::writeToFlash(const uint16_t * pTargetAddr, const uint16_t * pSource
 
 FFS_FILE_HEADER FFS::getHeader(uint8_t fileID, uint8_t * pData, uint16_t dataLen) {
 
+	/*
+	//Designated initialiser is not supported in this version of C++
+	//https://blogs.msdn.microsoft.com/vcblog/2017/12/19/c17-progress-in-vs-2017-15-5-and-15-6/
+	FFS_FILE_HEADER h = {
+		.magic = 1;
+		.fileID = fileID;
+		.ValidBit = 0;
+		.dataLen = dataLen;
+		.sequenceNumber = 0;
+		.dataCrc = crc8(pData, dataLen);
+	};
+	*/
+
 	FFS_FILE_HEADER header;
 
 	header.magic = MAGIC_NUMBER;
@@ -107,6 +120,7 @@ FFS_FILE_HEADER FFS::getHeader(uint8_t fileID, uint8_t * pData, uint16_t dataLen
 		header.sequenceNumber = files[fileID].header.sequenceNumber + 1;
 	}
 	return header;
+
 }
 
 uint8_t FFS::crc8(uint8_t * pData, uint16_t dataLen) {

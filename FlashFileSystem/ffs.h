@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <vector>
 
-
 using namespace std;
 enum ERROR {
 	NO_ERROR = 0,
@@ -15,13 +14,13 @@ enum ERROR {
 	ERR_FFS_PAGE_ERASE_FAIL
 };
 
-struct FFS_PAGE {
+typedef struct  {
 	uint8_t pageID;
 	uint16_t * baseAddress;
 	uint16_t availableFreeMemory;
-};
+}FFS_PAGE;
 
-struct FFS_FILE_HEADER {
+typedef struct  {
 	uint8_t magic;
 	uint8_t fileID : 7;
 	uint8_t ValidBit : 1;
@@ -29,13 +28,13 @@ struct FFS_FILE_HEADER {
 	uint16_t dataLen;
 	uint8_t dataCrc;
 	uint8_t headerCrc;
-};
+}FFS_FILE_HEADER;
 
-struct FFS_FILE {
+typedef struct  {
 	FFS_FILE_HEADER header;
 	uint16_t * pDataAddress;
 	uint16_t * pfileAddress;
-};
+}FFS_FILE;
 
 class FFS {
 public:

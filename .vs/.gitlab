@@ -1,0 +1,13 @@
+{
+  "User": {
+    "Id": 3,
+    "Username": "vazeeruddin.mohammed",
+    "Name": "Vazeeruddin Mohammed",
+    "Email": "vazeeruddin.mohammed@microsemi.com",
+    "AvatarUrl": "https://www.gravatar.com/avatar/c6874e4b629efb79687175607394c69e?s=80&d=identicon",
+    "PrivateToken": "4e613e550d81d7c03cb8b9e57b9de8128935fcd4257e50cbe501d11bf641f92c",
+    "Host": "http://blr1cadinfra06.microsemi.net",
+    "TwoFactorEnabled": false,
+    "ApiVersion": 3
+  }
+}

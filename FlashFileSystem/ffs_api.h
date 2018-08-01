@@ -22,8 +22,14 @@ extern "C" {
 #endif
 
 #include <stdint.h>    
+	typedef enum {
+		FLASH_SUCCESS,      //!< FLASH_SUCCESS
+		FLASH_OP_ERROR,     //!< FLASH_OP_ERROR
+		FLASH_WRONG_ADDRESS //!< FLASH_WRONG_ADDRESS
+	} FlashErrorCode;
 
-	uint8_t initFlashFileSystem(const uint16_t *pAddrList, const uint8_t pageCount, const uint8_t fileCount);
+
+	FlashErrorCode initFlashFileSystem(uint8_t **pAddrList, const uint8_t pageCount, const uint8_t fileCount);
 	uint8_t getFile(uint8_t fileID, uint16_t **pData, uint16_t *pDataLen);
 	uint8_t writeFile(uint8_t fileID, uint8_t *pData, uint16_t dataLen);
 
