@@ -108,6 +108,7 @@ typedef enum {
 
 typedef struct  {
     uint8_t pageNum;                 /*!< Page ID */
+    uint8_t pageIndex;
     uint8_t * baseAddress;          /*!< Page Start Address */
     uint16_t availableFreeMemory;   /*!< Available Free Memory in Page */
 }FFS_PAGE;
