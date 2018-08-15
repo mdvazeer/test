@@ -100,17 +100,12 @@ typedef enum {
     FLASH_WRONG_ADDRESS //!< FLASH_WRONG_ADDRESS
 } FlashErrorCode;
 
-/* Error code used internally, FFS user does not need to know this */
-typedef enum {
-    SUCCESS,
-    ERR_NO_SPACE_TO_WRITE,
-} ErrorCode;
-
 typedef struct  {
-    uint8_t pageNum;                 /*!< Page ID */
-    uint8_t pageIndex;
+    uint8_t pageNum;                /*!< Page ID */
+    uint8_t pageIndex;              /*!< Page Index */
     uint8_t * baseAddress;          /*!< Page Start Address */
     uint16_t availableFreeMemory;   /*!< Available Free Memory in Page */
+    uint16_t validMemorySize;       /*!< Size of valid File information present in page */
 }FFS_PAGE;
 
 typedef struct  {
@@ -125,6 +120,7 @@ typedef struct  {
 
 typedef struct  {
     FFS_FILE_HEADER header;
+    uint8_t pageIndex;
     uint8_t * pDataAddress;
     uint8_t * pfileAddress;
 }FFS_FILE;
@@ -185,9 +181,21 @@ public:
     
     uint16_t *_makeFile(uint8_t fileID, uint8_t * pData, uint16_t dataLen);
 
+
+    FFS()
+    {
+        pBackupPage = nullptr;
+        numberOfFiles = 0;
+        numberOfPages = 0;
+    }
+
+    ~FFS()
+    {
+    
+    }
 private:
-    uint8_t numberOfFiles = 0;
-    uint8_t numberOfPages = 0;
+    uint8_t numberOfFiles;
+    uint8_t numberOfPages;
 
     /* Holds all valid file information */
     vector<FFS_FILE> files;
@@ -198,31 +206,65 @@ private:
 
     /* Holds Backup Page information, used during Reclaim Memory Procedure */
     FFS_PAGE backupPage;
+    FFS_PAGE* pBackupPage;
 
     /* yet to decide exate use of currentPage.
     Currently it point to last Page whose PAGE_READY is set to 0x00
 
     currentPage update in cacheAllPage()
     */
-    FFS_PAGE currentPage;
+    //FFS_PAGE currentPage;
 
     /* old file */
     FFS_FILE oldFile;
 
+    /* internal functions */
     bool isFileExist(uint8_t fileID);
     bool ValidateFile(uint8_t* pFile);
+
+    /*************************************************************************************************/
+    /*!
+    *  \brief     Check whether given page is backup page
+    *
+    *  \param       pPageBaseAddress    Page start address
+    *
+    *  \return      return true if it is backup page, otherwise false
+    *
+    *  This function return whether given page is set as backup page or not.
+    */
+    /*************************************************************************************************/
+    bool isBackupPage(uint8_t* pPageBaseAddress);
+
+    /*************************************************************************************************/
+    /*!
+    *  \brief     Available free memry
+    *
+    *  \param       pPageBaseAddress    Page start address
+    *
+    *  \return      reutn available free memory
+    *
+    *  This function return available free memory in given page.
+    */
+    /*************************************************************************************************/
+    uint16_t getAvailableFreeMemory(uint8_t* pPageBaseAddress) const;
+
+    bool isFileIdValid(uint8_t id);
+    uint8_t* getPageStartAddress(uint8_t* pAddress);
+    uint8_t* getPageStartAddress(uint8_t pageNum);
+    FfsErrorCode getReclaimablePageIndex(uint8_t* pPageIndex, uint16_t newDataLen);
+    uint8_t reclaimProcedureStart(uint8_t ReclaimPageIndex, uint8_t targetPageIndex);
+    uint8_t reclaimProcedureErase(uint8_t ReclaimPageIndex, uint8_t targetPageIndex);
+    uint8_t reclaimProcedureData(uint8_t ReclaimPageIndex, uint8_t targetPageIndex);
     uint8_t cacheAllFiles(void);
     FFS_FILE_HEADER createHeader(const uint8_t fileID, const uint8_t * pData, const uint16_t dataLen);
     uint8_t crc8(const uint8_t * pData, const uint16_t dataLen);
     FlashErrorCode writeToFlash(const uint8_t * pTargetAddr, const uint8_t * pSourceAddr, const uint16_t dataLen);
     FfsErrorCode writeFileToFlash(FFS_FILE &file, const uint8_t* pData, const uint16_t dataLen);
     //uint8_t writeFileToFlash(FFS_PAGE page, FFS_FILE file);
-    uint8_t checkFileIntigrity(FFS_FILE file);
+    //uint8_t checkFileIntigrity(FFS_FILE file);
     uint8_t erasePage(FFS_PAGE page);
     FfsErrorCode getAddressToWrite(uint16_t dataLen, uint8_t** pNewAddress);
-    uint16_t getAvailableFreeMemory(uint8_t* pPageBaseAddress) const;
-    uint8_t* getPageStartAddress(uint8_t* pAddress);
-    uint8_t* getPageStartAddress(uint8_t pageNum);
+
     /* dummy function of Flash Class */
     uint8_t getPageNumber(uint8_t *address) const;
 };
