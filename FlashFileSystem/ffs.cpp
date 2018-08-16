@@ -20,18 +20,24 @@
 #include "ffs_api.h"
 
 #define MAGIC_NUMBER                 0xCC                            /*! Magic Number */
-#define PAGE_READY_BYTE                   0x00                            /*! Page Ready Byte */
+#define PAGE_READY_BYTE              0x00                            /*! Page Ready Byte */
 #define FILE_ID_MIN                  1                               /*! Minimum File ID */       
 #define FILE_ID_MAX                  127                             /*! Maximum File ID */
+#define PAGE_SIZE                    (uint32_t)0x2000                /*! Maximum Page Size */
+#define BACKUP_PAGE_BYTE             0x01
 
 #define HEADER_SIZE                  (sizeof(FFS_FILE_HEADER))
 
-#define PAGE_START_ADDRESS(pageNum)  PAGE_SIZE * (pageNum)  
+/* Start Address of a page */
+#define PAGE_START_ADDRESS(pageNum)             PAGE_SIZE * (pageNum)  
 
-//#define isFileIdValid(id)            (((id) >= FILE_ID_MIN) && ((id) <= FILE_ID_MAX))  ? true : false
-#define BACKUP_PAGE_BYTE             0x01
+/* Read Page Ready Byte(1st Byte) from page */
+#define GET_PAGE_READY_BYTE(pBaseAddress)       uint8_t(*(pBaseAddress + PAGE_READY_BYTE_POS))
 
-static const uint32_t PAGE_SIZE = 0x2000;         /*! Maximum Page Size */
+/* Read Next Backup Page Index(2nd Byte) from page */
+#define GET_NXT_BKUP_PAGE_INDEX(pBaseAddress)   uint8_t(*(pBaseAddress + NXT_BACKUP_PAGE_INDEX_POS))
+
+
 
 /* internal functions */
 
@@ -42,7 +48,7 @@ bool FFS::isFileIdValid(uint8_t id)
 
 bool FFS::isBackupPage(uint8_t* pAddress)
 {
-    return (uint8_t(*pAddress) & BACKUP_PAGE_BYTE) ? true : false;
+    return (GET_PAGE_READY_BYTE(pAddress) & BACKUP_PAGE_BYTE) ? true : false;
 }
 
 uint16_t FFS::getAvailableFreeMemory(uint8_t* pPageBaseAddress) const
@@ -57,6 +63,7 @@ uint16_t FFS::getAvailableFreeMemory(uint8_t* pPageBaseAddress) const
     return 0;
 }
 
+/* unused functions */
 uint8_t* FFS::getPageStartAddress(uint8_t pageNum)
 {
     uint8_t *pageStartAddress = reinterpret_cast<uint8_t *> (PAGE_START_ADDRESS(pageNum));
@@ -64,6 +71,7 @@ uint8_t* FFS::getPageStartAddress(uint8_t pageNum)
     return pageStartAddress;
 }
 
+/* unused functions */
 uint8_t* FFS::getPageStartAddress(uint8_t* pAddress)
 {
     uint8_t *pagestartaddress;
@@ -181,6 +189,8 @@ bool FFS::ValidateFile(uint8_t* pFile)
 }
 
 /*
+ToDo: Discuss with Vazeer
+
 Assumption: After Magic number File header byte is present.
 If Magic number present, increment pFile by header_size + data_len to point to next File in FFS
 irrespective data is valid or not.
@@ -231,7 +241,7 @@ uint8_t FFS::cacheAllFiles(void)
                 }
 
                 /*
-                ToDo:
+                ToDo: Discuss with Vazeer
                 If Magic number is not present then increment pFile by one byte
                 */
 
@@ -300,7 +310,7 @@ FfsErrorCode FFS::getAddressToWrite(uint16_t dataLen, uint8_t** pNewAddress)
     for (auto &page : pages)
     {
         /* current page and backup page are not same */
-        if (page.pageIndex != backupPage.pageIndex)
+        if (page.pageIndex != pBackupPage->pageIndex)
         {
             /* data length is less than available free memory */
             if (dataLen < page.availableFreeMemory)
@@ -314,7 +324,6 @@ FfsErrorCode FFS::getAddressToWrite(uint16_t dataLen, uint8_t** pNewAddress)
 
     return FFS_ERR_NO_SPACE_TO_WRITE;
 }
-
 /********* API Calls *******/
 uint8_t FFS::_initFFS(const uint8_t **pAddressList, const uint8_t pageCount, const uint8_t fileCount)
 {
@@ -323,6 +332,9 @@ uint8_t FFS::_initFFS(const uint8_t **pAddressList, const uint8_t pageCount, con
 
     uint8_t index = 0;
     uint8_t backupPageCount = 0;
+    uint8_t pageReadyByte;
+    uint8_t nextBkpUpPageIndex;
+    //bool isCacheFileAllowed = false;
 
     /* set backupPage Index to last page index */
     uint8_t backupPageIndex = MAX_PAGE_COUNT - 1;
@@ -336,37 +348,7 @@ uint8_t FFS::_initFFS(const uint8_t **pAddressList, const uint8_t pageCount, con
         page.baseAddress = const_cast<uint8_t*>(*pAddressList);
 
         /* Read 1st byte from page */
-        uint8_t data = uint8_t(*page.baseAddress);
-
-        /*
-        ToDo:
-        1. check for backup page, if not backup page available, set last page as backupPage -- done
-        2. If ready byte is not available erase that page and set ready byte to 0x00. Skip backup page. -- done
-        3. If it found two backupPage: it means Power OFF occurred during reclaiming of page. rectify it
-        4. Proceed to CacheAll Files -- done
-        */
-
-        if (BACKUP_PAGE_BYTE != data)
-        {
-            /* 2. If ready byte is not available erase that page and set ready byte to 0x00. Skip backup page. */
-            if (PAGE_READY_BYTE != data)
-            {
-                /* This condition only satisfy when board is fresh/new */
-                erasePage(page);
-
-                /* set page ready byte */
-
-                uint8_t tempBuff[8] = { 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-                writeToFlash(pages[index].baseAddress, &tempBuff[0], 8);
-
-            }
-        }
-        else
-        {
-            /* increment backup page counter and update index */
-            backupPageCount++;
-            backupPageIndex = index;
-        }
+        uint8_t pageReadyByte = GET_PAGE_READY_BYTE(page.baseAddress); //uint8_t(*page.baseAddress);
 
         /* get page id*/
         page.pageNum = getPageNumber(page.baseAddress);
@@ -377,6 +359,13 @@ uint8_t FFS::_initFFS(const uint8_t **pAddressList, const uint8_t pageCount, con
         /* Store page start address */
         pages.push_back(page);
 
+        if (BACKUP_PAGE_BYTE == pageReadyByte)
+        {
+            /* increment backup page counter and update index */
+            backupPageCount++;
+            backupPageIndex = index;
+        }
+
         /* next page address */
         pAddressList++;
 
@@ -386,23 +375,72 @@ uint8_t FFS::_initFFS(const uint8_t **pAddressList, const uint8_t pageCount, con
         index++;
     }
 
-    /* 3. If it found two backupPage: it means Power OFF occurred during reclaiming of page. rectify it */
-    if (backupPageCount > 1)
+    /* RAW */
+    if (backupPageCount == 0)
     {
-        /* ToDo:
-        //rectify it
-        //erase required page
-        //update backupPageIndex
+        /*  backupPage index */
+        backupPageIndex = MAX_PAGE_COUNT - 1;
+
+        /* Iterate through each page, Erase Page if PageReady Byte is not present.
+           Skip BackupPage
         */
+        for (int i = 0; i < backupPageIndex; i++)
+        {
+            pageReadyByte = GET_PAGE_READY_BYTE(pages[i].baseAddress); //uint8_t(*(pages[i].baseAddress + PAGE_READY_BYTE_POS));
+
+            if (0xFF == pageReadyByte)
+            {
+                /* Erase Page */
+                erasePage(pages[i]);
+
+                /* write page ready byte */
+                uint8_t tempBuff[8] = { 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+                writeToFlash(pages[index].baseAddress, &tempBuff[0], 8);
+            }
+        }
+
+        /* Set last page as Backup Page */
+        uint8_t tempBuff[8] = { BACKUP_PAGE_BYTE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+        writeToFlash(pages[backupPageIndex].baseAddress, &tempBuff[0], 8);
+
+        //isCacheFileAllowed = true;
     }
-    else
+    else if (backupPageCount == 1)
     {
-        /* 1. check for backup page, if not backup page available, tag last page as backupPage update pointer
-              Otherwise set pointer to tagged backup page which is identified */
-        pBackupPage = &pages[backupPageIndex];
+        /* Get Next backup Page index */
+        nextBkpUpPageIndex = GET_NXT_BKUP_PAGE_INDEX(pages[backupPageIndex].baseAddress);
+
+        /* Reclaim Procedure to continue */
+        if (0xFF != nextBkpUpPageIndex)
+        {
+            /* ToDo: reconfirm with Vazeer */
+            reclaimProcedureStart(nextBkpUpPageIndex, backupPageIndex);
+            //isCacheFileAllowed = true;
+        }
+        else
+        {
+            //isCacheFileAllowed = true;
+        }
+    }
+    /* Incomplete Reclaim Procedure */
+    else if (backupPageCount > 1)
+    {
+        for (auto page : pages)
+        {
+            pageReadyByte = GET_PAGE_READY_BYTE(pages[backupPageIndex].baseAddress);
+            nextBkpUpPageIndex = GET_NXT_BKUP_PAGE_INDEX(pages[backupPageIndex].baseAddress);
+            //nextBkpUpPageIndex = uint8_t(*(pages[backupPageIndex].baseAddress + NXT_BACKUP_PAGE_INDEX_POS));
+
+            if ((BACKUP_PAGE_BYTE == pageReadyByte) && (0xFF != nextBkpUpPageIndex))
+            {
+                (void)reclaimProcedureData(nextBkpUpPageIndex, backupPageIndex);
+                (void)reclaimProcedureErase(nextBkpUpPageIndex, backupPageIndex);
+
+                break;
+            }
+        }
     }
 
-    /* 4. Proceed to CacheAll Files */
     /* Store all valid file from flash */
     if (numberOfPages)
         cacheAllFiles();
@@ -412,26 +450,13 @@ uint8_t FFS::_initFFS(const uint8_t **pAddressList, const uint8_t pageCount, con
 
 uint8_t FFS::_getFileData(const uint8_t fileID, uint8_t ** pData, uint16_t *pDataLen)
 {
-
-    //if (isFileExist(fileID)) {
-
-    //    *pData = files[fileID].pDataAddress;
-    //    *pDataLen = files[fileID].header.dataLen;
-    //}
-    //else {
-    //    return FFS_ERR_FILE_NOT_FOUND;
-    //}
-    //return FFS_SUCCESS;
-
     uint8_t retVal = FFS_ERR_FILE_NOT_FOUND;
 
     /* Validate fileID(1-127) and check is files empty */
-    //todo: use max and min file macro
     if (!isFileIdValid(fileID))
     {
         retVal = FFS_ERR_INVALID_FILE_ID;
     }
-
     else if (!files.empty())
     {
         for (const auto &file : files) {
@@ -449,6 +474,11 @@ uint8_t FFS::_getFileData(const uint8_t fileID, uint8_t ** pData, uint16_t *pDat
             }
         }
     }
+    else
+    {
+        /* Do Nothing */
+    }
+
     return retVal;
 }
 
@@ -479,9 +509,9 @@ FfsErrorCode FFS::getReclaimablePageIndex(uint8_t* pPageIndex, uint16_t newDataL
     return retVal;
 }
 
-uint8_t FFS::reclaimProcedureErase(uint8_t reclaimPageIndex, uint8_t backupPageIndex)
+FfsErrorCode FFS::reclaimProcedureErase(uint8_t reclaimPageIndex, uint8_t backupPageIndex)
 {
-    uint8_t retVal = FFS_SUCCESS;
+    FfsErrorCode retVal = FFS_SUCCESS;
     /*Erase Reclaim Page */
     erasePage(pages[reclaimPageIndex]);
 
@@ -500,9 +530,9 @@ uint8_t FFS::reclaimProcedureErase(uint8_t reclaimPageIndex, uint8_t backupPageI
     return retVal;
 }
 
-uint8_t FFS::reclaimProcedureData(uint8_t reclaimPageIndex, uint8_t backupPageIndex)
+FfsErrorCode FFS::reclaimProcedureData(uint8_t reclaimPageIndex, uint8_t backupPageIndex)
 {
-    uint8_t retVal = FFS_SUCCESS;
+    FfsErrorCode retVal = FFS_SUCCESS;
 
     uint8_t* pTargetAddress = pages[backupPageIndex].baseAddress;
 
@@ -522,9 +552,9 @@ uint8_t FFS::reclaimProcedureData(uint8_t reclaimPageIndex, uint8_t backupPageIn
     return retVal;
 }
 
-uint8_t FFS::reclaimProcedureStart(uint8_t reclaimPageIndex, uint8_t backupPageIndex)
+FfsErrorCode FFS::reclaimProcedureStart(uint8_t reclaimPageIndex, uint8_t backupPageIndex)
 {
-    uint8_t retVal = FFS_SUCCESS;
+    FfsErrorCode retVal = FFS_SUCCESS;
 
     /* Write ReclaimPageIndex in BkpPageRegistry Byte of current backup page */
     uint8_t tmpBuff[8];
@@ -532,7 +562,10 @@ uint8_t FFS::reclaimProcedureStart(uint8_t reclaimPageIndex, uint8_t backupPageI
     tmpBuff[1] = reclaimPageIndex;
     writeToFlash(pBackupPage->baseAddress, &tmpBuff[0], 8);
 
+    /* Reclaim Data */
     retVal = reclaimProcedureData(reclaimPageIndex, backupPageIndex);
+
+    /* Erase */
     retVal = reclaimProcedureErase(reclaimPageIndex, backupPageIndex);
 
     return retVal;
@@ -562,25 +595,24 @@ uint8_t FFS::_writeFileData(const uint8_t fileID, const uint8_t * pData, const u
     /* get address to wirte */
     retVal = getAddressToWrite(dataLen, &pAddressToWrite);
 
-
-    //reclaimProcedureStart
-    //reclaimProcedureErase
-    //reclaimProcedureData
-
     if (FFS_ERR_NO_SPACE_TO_WRITE == retVal)
     {
-        //Reclaim Memory
+        /* Reclaim Memory */
         uint8_t reclaimPageIndex = 0x00;
         retVal = getReclaimablePageIndex(&reclaimPageIndex, dataLen);
         if (FFS_SUCCESS == retVal)
         {
             /* Start Reclaim Procedure */
-            reclaimProcedureStart(reclaimPageIndex, pBackupPage->pageIndex);
+            retVal = reclaimProcedureStart(reclaimPageIndex, pBackupPage->pageIndex);
         }
-        //update backupPage
+        /* update backupPage */
+        if (FFS_SUCCESS == retVal)
+        {
+            pBackupPage = &pages[reclaimPageIndex];
+        }
     }
 
-    //If reclaim Memory is successful, Write to flash
+    /* Write to flash */
     if (FFS_SUCCESS == retVal)
     {
         /* prepare new file */
@@ -606,14 +638,12 @@ uint8_t FFS::_writeFileData(const uint8_t fileID, const uint8_t * pData, const u
 
                     /* Erase file */
                     files.erase(files.begin() + i);
-
                     break;
                 }
             }
 
             /* store updated file information */
             files.push_back(newFile);
-
         }
     }
     return 0;
@@ -621,52 +651,42 @@ uint8_t FFS::_writeFileData(const uint8_t fileID, const uint8_t * pData, const u
 
 FfsErrorCode FFS::writeFileToFlash(FFS_FILE &file, const uint8_t* pData, const uint16_t dataLen)
 {
-
-    /* get page base address and available memory */
-    //uint8_t* pPageBaseAddress = getPageStartAddress(file.pfileAddress);
-    //uint16_t availablefreeMemory = getAvailableFreeMemory(pPageBaseAddress);
     FlashErrorCode retVal;
 
-    //if (dataLen > availablefreeMemory)
-    //{
-    //    return FFS_ERR_DATA_SIZE_EXCEEDS;
-    //}
-    //else
+    /* Todo: Discuss with Vazeer
+       Should data size be alweays multiple of 8, as write raw will write 8 byte minimum */
+
+       /* write Header */
+    uint8_t* pSourceAddr = (uint8_t*)&file.header;
+    uint8_t* pTargetAddr = file.pfileAddress;
+    retVal = writeToFlash(pTargetAddr, pSourceAddr, HEADER_SIZE);
+
+    if (FLASH_SUCCESS != retVal)
     {
-        /* todo: Should data size be alweays multiple of 8, as write raw will write 8 byte minimum */
+        return FFS_ERR_WRITE_FAIL;
+    }
 
-        /* write Header */
-        uint8_t* pSourceAddr = (uint8_t*)&file.header;
-        uint8_t* pTargetAddr = file.pfileAddress;
-        retVal = writeToFlash(pTargetAddr, pSourceAddr, HEADER_SIZE);
+    if (dataLen > 0)
+    {
+        /* Write Data */
+        pSourceAddr = const_cast<uint8_t*>(pData);
+        pTargetAddr = file.pDataAddress;
 
+        retVal = writeToFlash(pTargetAddr, pSourceAddr, dataLen);
         if (FLASH_SUCCESS != retVal)
         {
             return FFS_ERR_WRITE_FAIL;
         }
 
-        if (dataLen > 0)
+        /* validate write */
+        if (!ValidateFile(file.pfileAddress))
         {
-            /* Write Data */
-            pSourceAddr = const_cast<uint8_t*>(pData);
-            pTargetAddr = file.pDataAddress;
-
-            retVal = writeToFlash(pTargetAddr, pSourceAddr, dataLen);
-            if (FLASH_SUCCESS != retVal)
-            {
-                return FFS_ERR_WRITE_FAIL;
-            }
-
-            /* validate write */
-            if (!ValidateFile(file.pfileAddress))
-            {
-                return FFS_ERR_WRITE_FAIL;
-            }
+            return FFS_ERR_WRITE_FAIL;
         }
-
-        /* write succesful */
-        return FFS_SUCCESS;
     }
+
+    /* write succesful */
+    return FFS_SUCCESS;
 }
 
 /* dummy function of FlasC class */
@@ -689,17 +709,10 @@ uint16_t *FFS::_makeFile(uint8_t fileID, uint8_t * pData, uint16_t dataLen) {
     return (uint16_t*)pFile;
 }
 
-uint8_t FFS::erasePage(FFS_PAGE page) {
+uint8_t FFS::erasePage(FFS_PAGE& page)
+{
+
     uint8_t *pageAddress = page.baseAddress;
-
-    /*       Erase the page    */
-    // eraseFlashPage(pageAddress);
-
-    /*       write  PAGE_READY  on top of page*/
-    // uint16_t data = PAGE_READY
-    // write16(pageAddress, &data);
-
-    /*        Validate PAGE_READY         */
 
     return FFS_SUCCESS;
 }
