@@ -32,7 +32,8 @@ extern "C" {
         FFS_ERR_INVALID_FILE_ID,            /*!< Invalid File ID */
         FFS_ERR_WRITE_FAIL,                 /*!< Write Fail */
         FFS_ERR_ERASE_FAIL,                 /*!< Erase Fail */
-        FFS_ERR_NO_SPACE_TO_WRITE
+        FFS_ERR_NO_SPACE_TO_WRITE,
+        FFS_ERR_FAIL
     }FfsErrorCode;
 
     FfsErrorCode initFlashFileSystem(uint8_t **pAddrList, const uint8_t pageCount, const uint8_t fileCount);
