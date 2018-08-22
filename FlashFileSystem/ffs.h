@@ -5,8 +5,8 @@
 
 #include <stdint.h>
 #include <vector>
-#include "ffs_api.h"
-
+//#include "ffs_api.h"
+#include "ffs_common.h"
 using namespace std;
 
 /* gs: changed error name from ERROR to  "FfsErrorCode"
@@ -14,11 +14,7 @@ using namespace std;
     Below enum should be mentioned in separate header file
 */
 
-/* Maximum File count */
-#define MAX_FILE_COUNT          0x03
 
-/* Maximum PAGE count */
-#define MAX_PAGE_COUNT          0x03
 
 /*! Flash Block Format */
 /*
@@ -106,6 +102,7 @@ typedef enum
 typedef enum
 {
     PAGE_HEADER_ELE
+    PAGE_HEADER_SIZE
 }pageHeaderElePos_t;
 
 
@@ -144,6 +141,8 @@ typedef struct {
 class FFS {
 public:
 
+    FlashErrorCode writeToFlash(uint8_t *address, const uint8_t *pAddress, const uint32_t size, const uint32_t key);
+
     /*************************************************************************************************/
     /*!
     *  \brief      Inititalise Flash File System
@@ -157,7 +156,7 @@ public:
     *  This function fetches predefined static list of Page Address, number of pages and number of files
     */
     /*************************************************************************************************/
-    uint8_t _initFFS(const uint8_t **AddressList, const uint8_t pageCount, const uint8_t fileCount);
+    FfsErrorCode _initFFS(const uint8_t **AddressList, const uint8_t pageCount, const uint8_t fileCount);
 
     /*************************************************************************************************/
     /*!
@@ -175,7 +174,7 @@ public:
     */
     /*************************************************************************************************/
 
-    uint8_t _getFileData(const uint8_t fileID, uint8_t ** pData, uint16_t *pDataLen);
+    FfsErrorCode _getFileData(const uint8_t fileID, uint8_t ** pData, uint16_t *pDataLen);
 
     /*************************************************************************************************/
     /*!
@@ -193,10 +192,19 @@ public:
     */
     /*************************************************************************************************/
 
-    uint8_t _writeFileData(const uint8_t fileID, const uint8_t * pData, const uint16_t dataLen);
+    FfsErrorCode _writeFileData(const uint8_t fileID, const uint8_t * pData, const uint16_t dataLen);
 
     uint16_t *_makeFile(uint8_t fileID, uint8_t * pData, uint16_t dataLen);
 
+#ifdef FFS_TEST
+    int _getPageCount(void);
+
+    int _getValidFileCount(void);
+
+    int _getBackUpPageIndex(void);
+
+    int _resetFFS(void);
+#endif
 
     FFS()
     {
@@ -457,8 +465,9 @@ private:
     uint8_t* getPageStartAddress(uint8_t pageNum);
 
     /* dummy function of Flash Class */
-    FlashErrorCode writeToFlash(const uint8_t * pTargetAddr, const uint8_t * pSourceAddr, const uint16_t dataLen);
+    //FlashErrorCode writeToFlash(uint8_t *address, const uint8_t *pAddress, const uint32_t size, const uint32_t key);
     uint8_t getPageNumber(uint8_t *address) const;
+
 };
 
 #endif /* FFS_H */
